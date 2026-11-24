@@ -31,6 +31,12 @@ $ErrorActionPreference = "Continue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $here = $PSScriptRoot
 $log  = Join-Path $here "전사기록.txt"
+
+# "저장소 연결.bat"으로 연결해 두었으면 결과 폴더와 자동 올리기를 알아서 켭니다.
+if (-not $OutRoot) {
+  $auto = Join-Path $here "전사본저장소\올리기\전사본"
+  if (Test-Path -LiteralPath $auto) { $OutRoot = $auto; $GitPush = $true }
+}
 $exts = @(".mp4", ".mkv", ".mov", ".avi", ".m4v", ".mp3", ".m4a", ".wav", ".flac", ".aac", ".webm", ".ogg")
 
 function Say($msg, $color) {
