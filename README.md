@@ -18,8 +18,24 @@ API 키, 강의, 음성은 모두 **이 기기 브라우저(IndexedDB·localStor
 ## 무료 전사 도구 (Windows)
 `tools/windows/` — 녹화본을 1시간 MP3로 자르고 Faster-Whisper-XXL로 .srt를 만듭니다. 인터넷·API 키 없이 노트북 CPU로 돌아가요.
 
-1. [Faster-Whisper-XXL 릴리스](https://github.com/Purfview/whisper-standalone-win/releases/tag/Faster-Whisper-XXL)에서 Windows용 압축 파일을 받아, 이 폴더 안에 `Faster-Whisper-XXL` 폴더로 풉니다.
-2. 그 폴더에 `ffmpeg.exe`가 없으면 [ffmpeg essentials](https://www.gyan.dev/ffmpeg/builds/)에서 받아 `ffmpeg.exe`, `ffprobe.exe`를 이 폴더에 넣습니다.
-3. 강의 파일(mp4/mp3/m4a/wav)을 `KNUTS 전사.bat` 위에 끌어다 놓습니다. 결과는 원본 옆 `<파일이름>_KNUTS` 폴더에 생겨요.
+### 처음 한 번만
+1. [Faster-Whisper-XXL 릴리스](https://github.com/Purfview/whisper-standalone-win/releases/tag/Faster-Whisper-XXL)에서 Windows용 7z를 받아, 이 폴더 안에 `Faster-Whisper-XXL` 폴더로 풉니다 (안에 `ffmpeg.exe`도 들어 있습니다).
+2. `KNUTS 전사.bat`, `knuts-transcribe.ps1`, `용어힌트.txt`를 같은 폴더에 둡니다.
 
-모델·용어 힌트는 `knuts-transcribe.ps1` 맨 위 설정에서 바꿀 수 있어요. 중간에 꺼져도 다시 실행하면 끝난 조각은 건너뜁니다.
+### 하루치 한 번에 돌리기
+- **방법 1** 강의 파일 여러 개 또는 그날 폴더를 통째로 `KNUTS 전사.bat` 위에 끌어다 놓기
+- **방법 2** 같은 폴더의 `입력` 폴더에 하루치를 넣고 `KNUTS 전사.bat`을 더블클릭 (처음 실행하면 `입력` 폴더가 자동으로 만들어집니다)
+
+큐에 쌓아 한 파일씩 처리하고, 이미 만들어진 `.srt`는 건너뜁니다. 중간에 꺼져도 다시 실행하면 이어서 합니다. 진행 상황은 `전사기록.txt`에 남습니다.
+
+### 설정 (`knuts-transcribe.ps1` 맨 위)
+| 항목 | 기본값 | 설명 |
+|---|---|---|
+| `$Model` | `large-v3-turbo` | 느리면 `medium`, 더 정확하게는 `large-v3` |
+| `$ChunkSeconds` | `3600` | 자르는 단위(초) |
+| `$WhenDone` | `none` | 끝난 뒤 `sleep`(절전) 또는 `shutdown`(종료) |
+
+`용어힌트.txt`는 그 과목에 자주 나오는 용어를 적어 두는 파일입니다. 전사할 때 Whisper에 함께 전달돼 용어 인식이 좋아집니다. 강의 파일과 같은 폴더에 `용어힌트.txt`를 두면 그 과목 것이 우선 적용됩니다. Whisper 힌트는 길면 효과가 없어서 300자까지만 씁니다.
+
+### 전사 뒤
+`.srt`를 Claude 채팅에 올리고 "○○과목으로 정리해 줘"라고 하면, 강의 슬라이드·필기본을 근거로 의학 용어를 교정하고 요약·중요 내용을 만들어 저장합니다.
