@@ -14,3 +14,12 @@ API 키, 강의, 음성은 모두 **이 기기 브라우저(IndexedDB·localStor
 
 ## 개발
 `src/`를 고친 뒤 `node build.js`(→ app.js), 클래스를 새로 썼다면 `node tw.js`(→ tw.css).
+
+## 무료 전사 도구 (Windows)
+`tools/windows/` — 녹화본을 1시간 MP3로 자르고 Faster-Whisper-XXL로 .srt를 만듭니다. 인터넷·API 키 없이 노트북 CPU로 돌아가요.
+
+1. [Faster-Whisper-XXL 릴리스](https://github.com/Purfview/whisper-standalone-win/releases/tag/Faster-Whisper-XXL)에서 Windows용 압축 파일을 받아, 이 폴더 안에 `Faster-Whisper-XXL` 폴더로 풉니다.
+2. 그 폴더에 `ffmpeg.exe`가 없으면 [ffmpeg essentials](https://www.gyan.dev/ffmpeg/builds/)에서 받아 `ffmpeg.exe`, `ffprobe.exe`를 이 폴더에 넣습니다.
+3. 강의 파일(mp4/mp3/m4a/wav)을 `KNUTS 전사.bat` 위에 끌어다 놓습니다. 결과는 원본 옆 `<파일이름>_KNUTS` 폴더에 생겨요.
+
+모델·용어 힌트는 `knuts-transcribe.ps1` 맨 위 설정에서 바꿀 수 있어요. 중간에 꺼져도 다시 실행하면 끝난 조각은 건너뜁니다.
