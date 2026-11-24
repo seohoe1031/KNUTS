@@ -1,13 +1,24 @@
-﻿# KNUTS 강의 전사 v2 (Windows, 무료 · 오프라인)
+﻿# KNUTS 강의 전사 v3 (Windows, 무료 · 오프라인)
 # 하루치를 한 번에 돌릴 수 있습니다.
 #   방법 1) 강의 파일 여러 개 또는 폴더를 "KNUTS 전사.bat" 위에 끌어다 놓기
 #   방법 2) 이 폴더의 "입력" 폴더에 하루치를 넣고 "KNUTS 전사.bat"을 그냥 더블클릭
-# 하는 일: 1시간 단위 MP3로 자르기 -> 한국어+용어 힌트로 전사 -> <파일이름>_KNUTS 폴더에 .srt 저장
+# 하는 일: 1시간 단위 MP3로 자르기 -> 한국어+용어 힌트로 전사 -> 결과 폴더에 .srt 저장
 # 이미 만들어진 .srt는 건너뛰므로, 중간에 꺼져도 다시 실행하면 이어서 합니다.
 
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Items)
 
 # ───── 설정 (필요하면 여기만 고치세요) ─────
+
+# 결과(.srt)를 모을 폴더. 비워 두면 강의 파일 옆에 "<파일이름>_KNUTS" 폴더를 만듭니다.
+# 예) $OutRoot = "C:\Users\1031s\Documents\classification-of-past-exam\올리기\전사본"
+$OutRoot = ""
+
+# 전사가 끝나면 결과 폴더가 속한 GitHub 저장소에 자동으로 올립니다. (git 설치 필요)
+$GitPush = $false
+
+# 자르기용 MP3 조각을 전사 후 지울지. $false면 남겨 둡니다(다시 돌릴 때 빨라요).
+$DeleteParts = $true
+
 $Model        = "large-v3-turbo"   # 느리면 "medium", 더 정확하게는 "large-v3"
 $Device       = "cpu"              # LG 그램(Intel Iris Xe)은 cpu
 $Compute      = "int8"
@@ -39,7 +50,7 @@ function Add-Media($path, $list) {
   if (Test-Path -LiteralPath $path -PathType Container) {
     $found = @(Get-ChildItem -LiteralPath $path -File -Recurse -ErrorAction SilentlyContinue)
     foreach ($f in $found) {
-      if (($exts -contains $f.Extension.ToLower()) -and ($f.DirectoryName -notlike "*_KNUTS")) { [void]$list.Add($f.FullName) }
+      if (($exts -contains $f.Extension.ToLower()) -and ($f.DirectoryName -notlike "*_KNUTS") -and ($f.DirectoryName -notlike "*_임시")) { [void]$list.Add($f.FullName) }
     }
   } elseif (Test-Path -LiteralPath $path -PathType Leaf) {
     $f = Get-Item -LiteralPath $path
@@ -78,6 +89,9 @@ $ffmpeg  = Find-Tool "ffmpeg.exe"
 $ffprobe = Find-Tool "ffprobe.exe"
 if (-not $whisper) { Say "[오류] faster-whisper-xxl.exe를 찾지 못했어요. 이 스크립트 옆 'Faster-Whisper-XXL' 폴더에 압축을 풀어 주세요." Red; Read-Host "엔터를 누르면 닫혀요"; exit 1 }
 if (-not $ffmpeg)  { Say "[오류] ffmpeg.exe를 찾지 못했어요. ffmpeg.exe를 이 스크립트와 같은 폴더에 넣어 주세요." Red; Read-Host "엔터를 누르면 닫혀요"; exit 1 }
+if ($OutRoot -and -not (Test-Path -LiteralPath $OutRoot)) {
+  try { New-Item -ItemType Directory -Force -Path $OutRoot | Out-Null } catch { Say ("[오류] 결과 폴더를 만들지 못했어요: " + $OutRoot) Red; Read-Host "엔터를 누르면 닫혀요"; exit 1 }
+}
 
 # ── 처리할 파일 모으기 ──
 $queue = New-Object System.Collections.ArrayList
@@ -107,6 +121,7 @@ Write-Host ""
 Say ("■ 전사 시작 — 파일 " + $files.Count + "개" + $(if ($totalSec -gt 0) { " · 녹음 길이 합계 " + (Show-Span $totalSec) } else { "" })) Cyan
 if ($totalSec -gt 0) { Write-Host ("  예상 소요 시간: 약 " + (Show-Span ($totalSec / 1.1)) + " (이 노트북 기준, 녹음 길이와 비슷합니다)") -ForegroundColor DarkGray }
 foreach ($f in $files) { Write-Host ("   - " + [System.IO.Path]::GetFileName($f)) -ForegroundColor DarkGray }
+if ($OutRoot) { Write-Host ("  결과 폴더: " + $OutRoot) -ForegroundColor DarkGray }
 if ($WhenDone -ne "none") { Write-Host ("  끝난 뒤: " + $(if ($WhenDone -eq "sleep") { "절전 모드로 전환" } else { "컴퓨터 종료" })) -ForegroundColor DarkGray }
 Write-Host ""
 
@@ -120,22 +135,29 @@ $n = 0
 foreach ($file in $files) {
   $n++
   $item = Get-Item -LiteralPath $file
-  $out = Join-Path $item.DirectoryName ($item.BaseName + "_KNUTS")
-  if (-not (Test-Path -LiteralPath $out)) { New-Item -ItemType Directory -Force -Path $out | Out-Null }
+  if ($OutRoot) { $out = Join-Path $OutRoot $item.BaseName } else { $out = Join-Path $item.DirectoryName ($item.BaseName + "_KNUTS") }
+  $work = Join-Path $item.DirectoryName ($item.BaseName + "_임시")
+  foreach ($d in @($out, $work)) { if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Force -Path $d | Out-Null } }
   Write-Host ""
   Say ("[파일 " + $n + "/" + $files.Count + "] " + $item.Name) Cyan
 
   # 1) 1시간 단위 MP3 (모노 16kHz 64kbps: 음성 인식에 충분하고 용량이 작음)
-  $parts = @(Get-ChildItem -LiteralPath $out -Filter "*.mp3" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like ($item.BaseName + "_part*") } | Sort-Object Name)
-  if ($parts.Count -eq 0) {
+  $parts = @(Get-ChildItem -LiteralPath $work -Filter "*.mp3" -ErrorAction SilentlyContinue | Sort-Object Name)
+  $done = @(Get-ChildItem -LiteralPath $out -Filter "*.srt" -ErrorAction SilentlyContinue)
+  if ($parts.Count -eq 0 -and $done.Count -eq 0) {
     Write-Host "  MP3로 자르는 중…"
-    $pattern = Join-Path $out ($item.BaseName + "_part%02d.mp3")
+    $pattern = Join-Path $work ($item.BaseName + "_part%02d.mp3")
     & $ffmpeg -hide_banner -loglevel error -y -i "$($item.FullName)" -vn -ac 1 -ar 16000 -b:a 64k -f segment -segment_time $ChunkSeconds -reset_timestamps 1 "$pattern"
-    $parts = @(Get-ChildItem -LiteralPath $out -Filter "*.mp3" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like ($item.BaseName + "_part*") } | Sort-Object Name)
+    $parts = @(Get-ChildItem -LiteralPath $work -Filter "*.mp3" -ErrorAction SilentlyContinue | Sort-Object Name)
   }
-  if ($parts.Count -eq 0) { Say "  [건너뜀] 음성을 추출하지 못했어요." Yellow; $failCount++; continue }
+  if ($parts.Count -eq 0) {
+    if ($done.Count -gt 0) { Write-Host "  이미 전사돼 있어요 — 건너뜁니다." -ForegroundColor DarkGray; $okCount += $done.Count; [void]$outDirs.Add($out) }
+    else { Say "  [건너뜀] 음성을 추출하지 못했어요." Yellow; $failCount++ }
+    continue
+  }
 
   $prompt = Get-Prompt $item.FullName
+  $allOk = $true
   $i = 0
   foreach ($p in $parts) {
     $i++
@@ -151,21 +173,44 @@ foreach ($file in $files) {
       Say ($tag + " 완료 (" + $took + "분) -> " + $p.BaseName + ".srt") Green
       $okCount++
     } else {
-      Say ($tag + " 실패 — .srt가 만들어지지 않았어요." ) Yellow
-      $failCount++
+      Say ($tag + " 실패 — .srt가 만들어지지 않았어요.") Yellow
+      $failCount++; $allOk = $false
     }
   }
   [void]$outDirs.Add($out)
+  if ($allOk -and $DeleteParts) { try { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue } catch { } }
 }
 
 [void][KNUTS.Power]::SetThreadExecutionState([uint32]2147483648)
 $span = (Get-Date) - $startAll
 Write-Host ""
 Say ("■ 모두 끝났어요 — 성공 " + $okCount + "개, 실패 " + $failCount + "개, 총 " + (Show-Span $span.TotalSeconds) + " 걸렸어요.") Green
-Write-Host "각 폴더의 .srt 파일을 Claude 채팅에 올리고 '과목명으로 정리해 줘'라고 하면 됩니다."
-foreach ($d in $outDirs) { Write-Host ("  " + $d) -ForegroundColor DarkGray }
-if ($outDirs.Count -gt 0 -and $outDirs.Count -le 3) { foreach ($d in $outDirs) { Start-Process explorer.exe $d } }
-elseif ($outDirs.Count -gt 3) { Start-Process explorer.exe (Split-Path -LiteralPath $outDirs[0] -Parent) }
+
+# ── GitHub에 자동으로 올리기 ──
+if ($GitPush -and $OutRoot) {
+  $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+  if (-not $gitCmd) {
+    Say "git이 없어서 GitHub 올리기를 건너뜁니다. 설치하려면 명령 프롬프트에서:  winget install --id Git.Git -e" Yellow
+  } else {
+    $repo = (& git -C "$OutRoot" rev-parse --show-toplevel 2>$null)
+    if (-not $repo) {
+      Say "결과 폴더가 GitHub 저장소 안이 아니어서 올리기를 건너뜁니다." Yellow
+    } else {
+      Write-Host "GitHub에 올리는 중…"
+      & git -C "$repo" add -- "$OutRoot" 2>&1 | Out-Null
+      & git -C "$repo" commit -m ("전사본 추가 " + (Get-Date -Format "yyyy-MM-dd HH:mm")) 2>&1 | Out-Null
+      & git -C "$repo" pull --rebase 2>&1 | Out-Null
+      $pushOut = (& git -C "$repo" push 2>&1) -join " "
+      if ($LASTEXITCODE -eq 0) { Say "GitHub 올리기 완료" Green }
+      else { Say ("GitHub 올리기 실패 — 나중에 다시 시도하세요. " + $pushOut) Yellow }
+    }
+  }
+}
+
+Write-Host ".srt 파일은 여기에 있어요:"
+foreach ($d in ($outDirs | Sort-Object -Unique)) { Write-Host ("  " + $d) -ForegroundColor DarkGray }
+if ($OutRoot) { Start-Process explorer.exe $OutRoot }
+elseif ($outDirs.Count -gt 0) { Start-Process explorer.exe (Split-Path -LiteralPath $outDirs[0] -Parent) }
 
 if ($WhenDone -eq "sleep" -or $WhenDone -eq "shutdown") {
   Write-Host ""
