@@ -9,11 +9,8 @@ param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Items)
 
 # ───── 설정 (필요하면 여기만 고치세요) ─────
 
-# 결과(.srt)를 모을 폴더.
-#   비워 두면  -> 이 스크립트가 있는 폴더(98. KNUTS)에 모읍니다. 강의 파일 하나당 폴더 하나.
-#   "저장소 연결.bat"을 실행해 두었으면 -> 저장소 폴더로 가고 GitHub에 자동으로 올라갑니다.
-#   다른 곳에 모으고 싶으면 아래에 폴더 경로를 적으세요.
-#   예) $OutRoot = "D:\강의전사본"
+# 결과(.srt)를 모을 폴더. 비워 두면 이 스크립트가 있는 폴더(98. KNUTS)에 모읍니다.
+# 강의 파일 하나당 폴더 하나가 생깁니다. 예) $OutRoot = "D:\강의전사본"
 $OutRoot = ""
 
 # 전사가 끝나면 결과 폴더가 속한 GitHub 저장소에 자동으로 올립니다. (git 설치 필요)
@@ -35,12 +32,8 @@ $ErrorActionPreference = "Continue"
 $here = $PSScriptRoot
 $log  = Join-Path $here "전사기록.txt"
 
-# 결과 폴더 정하기: 저장소를 연결해 두었으면 그쪽, 아니면 이 스크립트가 있는 폴더.
-if (-not $OutRoot) {
-  $auto = Join-Path $here "전사본저장소\올리기\전사본"
-  if (Test-Path -LiteralPath $auto) { $OutRoot = $auto; $GitPush = $true }
-  else { $OutRoot = $here }
-}
+# 결과는 이 스크립트가 있는 폴더에 모읍니다. GitHub 올리기는 "GitHub 올리기.bat"이 합니다.
+if (-not $OutRoot) { $OutRoot = $here }
 $exts = @(".mp4", ".mkv", ".mov", ".avi", ".m4v", ".mp3", ".m4a", ".wav", ".flac", ".aac", ".webm", ".ogg")
 
 function Say($msg, $color) {

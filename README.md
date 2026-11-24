@@ -20,12 +20,14 @@ API 키, 강의, 음성은 모두 **이 기기 브라우저(IndexedDB·localStor
 
 ### 처음 한 번만
 1. [Faster-Whisper-XXL 릴리스](https://github.com/Purfview/whisper-standalone-win/releases/tag/Faster-Whisper-XXL)에서 Windows용 7z를 받아, 이 폴더 안에 `Faster-Whisper-XXL` 폴더로 풉니다 (안에 `ffmpeg.exe`도 들어 있습니다).
-2. `KNUTS 전사.bat`, `knuts-transcribe.ps1`, `용어힌트.txt`를 같은 폴더에 둡니다.
+2. `KNUTS 전사.bat`, `knuts-transcribe.ps1`, `GitHub 올리기.bat`, `knuts-upload.ps1`, `용어힌트.txt`를 같은 폴더에 둡니다.
 
-### GitHub에 자동으로 올리기 (한 번만 설정)
-`저장소 연결.bat`을 더블클릭하면 git을 설치하고, `Classification-of-Past-Exam` 저장소의 `올리기/전사본` 부분만 1MB 이하로 내려받아 `전사본저장소` 폴더에 연결합니다(전체 13GB를 받지 않습니다). 연결해 두면 `knuts-transcribe.ps1`이 결과 폴더와 자동 올리기를 알아서 켭니다.
+### GitHub에 올리기
+전사가 끝난 뒤 `GitHub 올리기.bat`을 더블클릭하면 됩니다. 처음 실행할 때 git 설치와 저장소 연결까지 알아서 합니다 — `Classification-of-Past-Exam` 저장소의 `올리기/전사본` 부분만 1MB 이하로 받으므로 13GB 전체를 내려받지 않습니다.
 
-그 뒤로는 전사가 끝날 때마다 `.srt`가 GitHub로 올라가고, 「본과 1학년」 앱의 과목 화면에서 **「내 Claude로 전사본 정리」** 를 누르면 Claude가 수업별로 분류하고 교정합니다.
+이미 올라간 전사본은 건너뛰고 새로 생긴 것만 올립니다. 다른 폴더의 전사본도 올리려면 그 폴더를 `GitHub 올리기.bat` 위에 끌어다 놓으세요.
+
+올린 뒤 「본과 1학년」 앱의 과목 화면에서 **「내 Claude로 전사본 정리」** 를 누르면 Claude가 수업별로 분류하고 의학 용어를 교정합니다.
 
 ### 하루치 한 번에 돌리기
 - **방법 1** 강의 파일 여러 개 또는 그날 폴더를 통째로 `KNUTS 전사.bat` 위에 끌어다 놓기
