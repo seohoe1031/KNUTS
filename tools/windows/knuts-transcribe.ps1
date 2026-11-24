@@ -39,7 +39,7 @@ if (-not $Files -or $Files.Count -eq 0) { Write-Host "전사할 파일을 'KNUTS
 
 # 작업 중 노트북이 잠자기로 빠지지 않게 (관리자 권한 불필요)
 Add-Type -Namespace KNUTS -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);'
-[KNUTS.Power]::SetThreadExecutionState(0x80000001) | Out-Null   # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+[KNUTS.Power]::SetThreadExecutionState([uint32]2147483649) | Out-Null   # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
 
 function Get-Duration($f) {
   if ($ffprobe) {
@@ -76,11 +76,11 @@ foreach ($f in $Files) {
     if (Test-Path $srt) { Write-Host "  [$i/$($parts.Count)] 이미 있음: $($p.BaseName).srt"; continue }
     $t0 = Get-Date
     $mins = [math]::Round((Get-Duration $p.FullName) / 60)
-    Write-Host "  [$i/$($parts.Count)] 전사 중 ($mins분 분량, 모델 $Model) — 처음 한 번은 모델을 내려받아요"
+    Write-Host "  [$i/$($parts.Count)] 전사 중 ($($mins)분 분량, 모델 $Model) — 처음 한 번은 모델을 내려받아요"
     & $whisper "$($p.FullName)" --language ko --model $Model --device $Device --compute_type $Compute --initial_prompt "$Prompt" --output_format srt --output_dir "$out" --beep_off
     if (Test-Path $srt) {
       $took = [math]::Round(((Get-Date) - $t0).TotalMinutes)
-      Write-Host "  [$i/$($parts.Count)] 완료 ($took분 걸림) → $($p.BaseName).srt" -ForegroundColor Green
+      Write-Host "  [$i/$($parts.Count)] 완료 ($($took)분 걸림) → $($p.BaseName).srt" -ForegroundColor Green
     } else {
       Write-Host "  [$i/$($parts.Count)] .srt가 만들어지지 않았어요. 위 오류 메시지를 확인해 주세요." -ForegroundColor Yellow
     }
@@ -88,7 +88,7 @@ foreach ($f in $Files) {
   Start-Process explorer.exe $out
 }
 
-[KNUTS.Power]::SetThreadExecutionState(0x80000000) | Out-Null
+[KNUTS.Power]::SetThreadExecutionState([uint32]2147483648) | Out-Null
 Write-Host ""
 Write-Host "모두 끝났어요. 총 $([math]::Round(((Get-Date) - $startAll).TotalMinutes))분 걸렸어요." -ForegroundColor Green
 Write-Host "각 폴더의 .srt 파일을 Claude 채팅에 올리고 '과목명으로 정리해 줘'라고 하면 됩니다."
