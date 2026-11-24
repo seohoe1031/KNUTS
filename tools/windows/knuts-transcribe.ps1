@@ -9,8 +9,11 @@ param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Items)
 
 # ───── 설정 (필요하면 여기만 고치세요) ─────
 
-# 결과(.srt)를 모을 폴더. 비워 두면 강의 파일 옆에 "<파일이름>_KNUTS" 폴더를 만듭니다.
-# 예) $OutRoot = "C:\Users\1031s\Documents\classification-of-past-exam\올리기\전사본"
+# 결과(.srt)를 모을 폴더.
+#   비워 두면  -> 이 스크립트가 있는 폴더(98. KNUTS)에 모읍니다. 강의 파일 하나당 폴더 하나.
+#   "저장소 연결.bat"을 실행해 두었으면 -> 저장소 폴더로 가고 GitHub에 자동으로 올라갑니다.
+#   다른 곳에 모으고 싶으면 아래에 폴더 경로를 적으세요.
+#   예) $OutRoot = "D:\강의전사본"
 $OutRoot = ""
 
 # 전사가 끝나면 결과 폴더가 속한 GitHub 저장소에 자동으로 올립니다. (git 설치 필요)
@@ -32,10 +35,11 @@ $ErrorActionPreference = "Continue"
 $here = $PSScriptRoot
 $log  = Join-Path $here "전사기록.txt"
 
-# "저장소 연결.bat"으로 연결해 두었으면 결과 폴더와 자동 올리기를 알아서 켭니다.
+# 결과 폴더 정하기: 저장소를 연결해 두었으면 그쪽, 아니면 이 스크립트가 있는 폴더.
 if (-not $OutRoot) {
   $auto = Join-Path $here "전사본저장소\올리기\전사본"
   if (Test-Path -LiteralPath $auto) { $OutRoot = $auto; $GitPush = $true }
+  else { $OutRoot = $here }
 }
 $exts = @(".mp4", ".mkv", ".mov", ".avi", ".m4v", ".mp3", ".m4a", ".wav", ".flac", ".aac", ".webm", ".ogg")
 
@@ -84,6 +88,27 @@ function Get-Prompt($file) {
   }
   return $DefaultPrompt
 }
+function Out-Folder($item) {
+  # 결과 폴더를 안 정했으면 예전처럼 강의 파일 옆에
+  if (-not $OutRoot) { return (Join-Path $item.DirectoryName ($item.BaseName + "_KNUTS")) }
+  # 한곳에 모을 때는 날짜 폴더 이름을 앞에 붙여 구분 (1117_01.1교시)
+  $parent = Split-Path -Leaf $item.DirectoryName
+  if ($parent -and $parent -ne "입력" -and $parent -notmatch '^[A-Za-z]:\\?$') { $base = $parent + "_" + $item.BaseName }
+  else { $base = $item.BaseName }
+  $try = Join-Path $OutRoot $base
+  $i = 1
+  while ($i -lt 50) {
+    $mark = Join-Path $try "_원본.txt"
+    if (-not (Test-Path -LiteralPath $try)) { return $try }
+    if (-not (Test-Path -LiteralPath $mark)) { return $try }
+    $src = (Get-Content -LiteralPath $mark -Raw -Encoding UTF8).Trim()
+    if ($src -eq $item.FullName) { return $try }   # 같은 녹음 -> 이어서
+    $i++
+    $try = Join-Path $OutRoot ($base + "_" + $i)   # 이름만 같은 다른 녹음 -> 새 폴더
+  }
+  return $try
+}
+
 function Show-Span($sec) {
   $t = [TimeSpan]::FromSeconds([math]::Round($sec))
   if ($t.TotalHours -ge 1) { return ("{0}시간 {1}분" -f [int]$t.TotalHours, $t.Minutes) }
@@ -141,9 +166,10 @@ $n = 0
 foreach ($file in $files) {
   $n++
   $item = Get-Item -LiteralPath $file
-  if ($OutRoot) { $out = Join-Path $OutRoot $item.BaseName } else { $out = Join-Path $item.DirectoryName ($item.BaseName + "_KNUTS") }
+  $out = Out-Folder $item
   $work = Join-Path $item.DirectoryName ($item.BaseName + "_임시")
   foreach ($d in @($out, $work)) { if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Force -Path $d | Out-Null } }
+  try { Set-Content -LiteralPath (Join-Path $out "_원본.txt") -Value $item.FullName -Encoding UTF8 } catch { }
   Write-Host ""
   Say ("[파일 " + $n + "/" + $files.Count + "] " + $item.Name) Cyan
 
