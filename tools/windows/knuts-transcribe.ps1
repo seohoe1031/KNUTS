@@ -16,8 +16,9 @@ $OutRoot = ""
 # 전사가 끝나면 결과 폴더가 속한 GitHub 저장소에 자동으로 올립니다. (git 설치 필요)
 $GitPush = $false
 
-# 자르기용 MP3 조각을 전사 후 지울지. $false면 남겨 둡니다(다시 돌릴 때 빨라요).
-$DeleteParts = $true
+# 전사에 쓴 MP3(1시간에 약 20MB)를 전사본 폴더에 남길지.
+# 남기면 "GitHub 올리기.bat"이 GitHub 릴리스로 올려 줍니다. 원본 녹화본은 지우셔도 돼요.
+$KeepMp3 = $true
 
 $Model        = "large-v3-turbo"   # 느리면 "medium", 더 정확하게는 "large-v3"
 $Device       = "cpu"              # LG 그램(Intel Iris Xe)은 cpu
@@ -215,7 +216,10 @@ foreach ($file in $files) {
     }
   }
   [void]$outDirs.Add($out)
-  if ($allOk -and $DeleteParts) { try { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue } catch { } }
+  if ($allOk) {
+    if ($KeepMp3) { foreach ($p in $parts) { try { Move-Item -LiteralPath $p.FullName -Destination (Join-Path $out $p.Name) -Force } catch { } } }
+    try { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue } catch { }
+  }
 }
 
 [void][KNUTS.Power]::SetThreadExecutionState([uint32]2147483648)

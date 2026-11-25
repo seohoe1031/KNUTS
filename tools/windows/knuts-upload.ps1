@@ -11,6 +11,9 @@ $here    = $PSScriptRoot
 $repoDir = Join-Path $here "전사본저장소"
 $url     = "https://github.com/seohoe1031/Classification-of-Past-Exam.git"
 $skip    = @("전사본저장소", "입력", "Faster-Whisper-XXL", "ffmpeg")
+$mine    = Join-Path $here "전사본"
+$TAG     = "lecture-audio"   # 강의 음성을 모아 둘 GitHub 릴리스 이름
+$DeleteLocalMp3 = $true      # 올린 뒤 노트북의 MP3를 지워 공간을 비웁니다 (원본 녹화본은 그대로)
 
 function HasGit { return [bool](Get-Command git -ErrorAction SilentlyContinue) }
 function RefreshPath {
@@ -20,7 +23,7 @@ function RefreshPath {
 
 # ── 1. git ──
 Write-Host ""
-Write-Host "■ 1/4  git 확인" -ForegroundColor Cyan
+Write-Host "■ 1/5  git 확인" -ForegroundColor Cyan
 if (-not (HasGit)) { RefreshPath }
 if (-not (HasGit)) {
   Write-Host "  git이 없어서 설치합니다. 권한을 묻는 창이 뜨면 '예'를 눌러 주세요. (3~5분)"
@@ -36,7 +39,7 @@ Write-Host ("  " + (git --version)) -ForegroundColor Green
 
 # ── 2. 저장소 연결 ──
 Write-Host ""
-Write-Host "■ 2/4  저장소 연결" -ForegroundColor Cyan
+Write-Host "■ 2/5  저장소 연결" -ForegroundColor Cyan
 if (Test-Path -LiteralPath (Join-Path $repoDir ".git")) {
   Write-Host "  이미 연결돼 있어요. 최신 상태로 맞춥니다…"
   & git -C "$repoDir" pull --rebase 2>&1 | Out-Null
@@ -58,7 +61,7 @@ Write-Host "  연결됨" -ForegroundColor Green
 
 # ── 3. 전사본 모으기 ──
 Write-Host ""
-Write-Host "■ 3/4  전사본 모으기" -ForegroundColor Cyan
+Write-Host "■ 3/5  전사본 모으기" -ForegroundColor Cyan
 $roots = New-Object System.Collections.ArrayList
 if (Test-Path -LiteralPath $mine) { [void]$roots.Add($mine) }
 [void]$roots.Add($here)
@@ -93,7 +96,7 @@ if ($copied -eq 0) {
 
 # ── 4. 올리기 ──
 Write-Host ""
-Write-Host "■ 4/4  GitHub에 올리기" -ForegroundColor Cyan
+Write-Host "■ 4/5  GitHub에 올리기" -ForegroundColor Cyan
 if ($copied -eq 0) {
   Write-Host "  올릴 게 없어서 건너뜁니다." -ForegroundColor DarkGray
 } else {
@@ -112,5 +115,82 @@ if ($copied -eq 0) {
     Write-Host "  인터넷이나 GitHub 로그인을 확인하고 다시 실행해 주세요. 복사해 둔 파일은 그대로 있어요."
   }
 }
+
+# ── 5/5. 강의 음성(MP3)을 GitHub 릴리스로 ──
+Write-Host ""
+Write-Host "■ 5/5  강의 음성 올리기" -ForegroundColor Cyan
+try {
+  $mp3 = New-Object System.Collections.ArrayList
+  foreach ($root in ($roots | Sort-Object -Unique)) {
+    $dirs = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | Where-Object { $skip -notcontains $_.Name })
+    foreach ($d in $dirs) {
+      foreach ($f in @(Get-ChildItem -LiteralPath $d.FullName -Filter "*.mp3" -ErrorAction SilentlyContinue)) { [void]$mp3.Add($f) }
+    }
+  }
+  if ($mp3.Count -eq 0) {
+    Write-Host "  올릴 음성이 없어요." -ForegroundColor DarkGray
+  } else {
+    $size = [math]::Round(($mp3 | Measure-Object -Property Length -Sum).Sum / 1MB)
+    Write-Host ("  음성 " + $mp3.Count + "개 (" + $size + "MB)")
+    $gh = Get-Command gh -ErrorAction SilentlyContinue
+    if (-not $gh) { RefreshPath; $gh = Get-Command gh -ErrorAction SilentlyContinue }
+    if (-not $gh) {
+      Write-Host "  GitHub CLI를 설치합니다. 권한을 묻는 창이 뜨면 '예'를 눌러 주세요."
+      winget install --id GitHub.cli -e --source winget --accept-source-agreements --accept-package-agreements
+      RefreshPath
+      $gh = Get-Command gh -ErrorAction SilentlyContinue
+    }
+    if (-not $gh) {
+      Write-Host "  GitHub CLI가 없어 음성 올리기를 건너뜁니다. 창을 닫고 다시 실행해 주세요." -ForegroundColor Yellow
+    } else {
+      & gh auth status 2>&1 | Out-Null
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host "  GitHub 로그인이 필요해요. 브라우저가 열립니다. (처음 한 번)" -ForegroundColor Yellow
+        & gh auth login --hostname github.com --git-protocol https --web
+      }
+      & gh auth status 2>&1 | Out-Null
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host "  로그인이 안 돼서 음성 올리기를 건너뜁니다." -ForegroundColor Yellow
+      } else {
+        $full = (& git -C "$repoDir" remote get-url origin) -replace '\.git$', '' -replace '^.*github\.com[:/]', ''
+        if (-not $full) { $full = "seohoe1031/Classification-of-Past-Exam" }
+        & gh release view $TAG --repo $full 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+          & gh release create $TAG --repo $full --title "강의 음성" --notes "강의 녹음을 전사용으로 줄인 MP3(모노 16kHz). 파일 이름은 날짜_순번입니다." 2>&1 | Out-Null
+        }
+        $tmp = Join-Path $env:TEMP "knuts-audio"
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
+        New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+        $up = 0
+        $perDir = @{}
+        foreach ($f in $mp3) { $perDir[$f.DirectoryName] = [int]$perDir[$f.DirectoryName] + 1 }
+        foreach ($f in $mp3) {
+          $base = ($f.Directory.Name -replace '[^0-9A-Za-z._-]', '').Trim('._-')
+          if (-not $base) { $base = 'audio' }
+          $cnt = [int]$perDir[$f.DirectoryName]
+          $m = [regex]::Match($f.BaseName, '_part(\d+)$')
+          $suffix = ''
+          if ($cnt -gt 1 -and $m.Success) { $suffix = '_p' + $m.Groups[1].Value }
+          $asset = Join-Path $tmp ($base + $suffix + '.mp3')
+          Copy-Item -LiteralPath $f.FullName -Destination $asset -Force
+          & gh release upload $TAG "$asset" --repo $full --clobber 2>&1 | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            $up++
+            Write-Host ("  + " + [System.IO.Path]::GetFileName($asset)) -ForegroundColor Green
+            if ($DeleteLocalMp3) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
+          } else {
+            Write-Host ("  ! " + $f.Name + " 올리기 실패") -ForegroundColor Yellow
+          }
+        }
+        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+        Say ("  음성 " + $up + "개 올림" + $(if ($DeleteLocalMp3 -and $up -gt 0) { " (노트북의 MP3는 지웠어요 — 원본 녹화본은 그대로예요)" } else { "" })) Green
+        Write-Host ("  https://github.com/" + $full + "/releases/tag/" + $TAG)
+      }
+    }
+  }
+} catch {
+  Write-Host ("  음성 올리기 중 문제가 생겼어요: " + $_.Exception.Message) -ForegroundColor Yellow
+}
+
 Write-Host ""
 Read-Host "엔터를 누르면 닫혀요"

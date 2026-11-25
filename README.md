@@ -25,7 +25,7 @@ API 키, 강의, 음성은 모두 **이 기기 브라우저(IndexedDB·localStor
 ### GitHub에 올리기
 전사가 끝난 뒤 `GitHub 올리기.bat`을 더블클릭하면 됩니다. 처음 실행할 때 git 설치와 저장소 연결까지 알아서 합니다 — `Classification-of-Past-Exam` 저장소의 `올리기/전사본` 부분만 1MB 이하로 받으므로 13GB 전체를 내려받지 않습니다.
 
-이미 올라간 전사본은 건너뛰고 새로 생긴 것만 올립니다. 다른 폴더의 전사본도 올리려면 그 폴더를 `GitHub 올리기.bat` 위에 끌어다 놓으세요.
+이미 올라간 전사본은 건너뛰고 새로 생긴 것만 올립니다. 전사에 쓴 MP3(1시간에 약 20MB)는 GitHub 릴리스 `lecture-audio` 로 올라가고 노트북에서는 지워집니다 — 노트북 공간을 아끼려는 것이고, 원본 녹화본은 건드리지 않습니다. GitHub는 <a href="https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github">일반 저장소에 100MiB 넘는 파일을 거부</a>하지만 릴리스는 개별 파일 2GiB까지 받고 전체 용량 제한이 없습니다. 다른 폴더의 전사본도 올리려면 그 폴더를 `GitHub 올리기.bat` 위에 끌어다 놓으세요.
 
 올린 뒤 「본과 1학년」 앱의 과목 화면에서 **「내 Claude로 전사본 정리」** 를 누르면 Claude가 수업별로 분류하고 의학 용어를 교정합니다.
 
