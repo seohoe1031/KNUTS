@@ -18,6 +18,9 @@ $DeleteLocalMp3 = $true      # 올린 뒤 노트북의 MP3를 지워 공간을 �
 $CleanLocal     = $true      # 다 올라간 뒤 노트북의 전사본·MP3를 지웁니다 (GitHub에만 남김)
 $DeleteSourceMp3 = $true     # 전사에 쓴 원본 MP3도 지웁니다 (화면 녹화본 mp4는 건드리지 않음)
 
+function Say($msg, $color) {
+  if ($color) { Write-Host $msg -ForegroundColor $color } else { Write-Host $msg }
+}
 function HasGit { return [bool](Get-Command git -ErrorAction SilentlyContinue) }
 function RefreshPath {
   $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
