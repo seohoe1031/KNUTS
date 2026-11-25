@@ -81,7 +81,7 @@ function Get-Duration($f) {
   return 0
 }
 function Get-Prompt($file) {
-  $dir = Split-Path -LiteralPath $file -Parent
+  $dir = [System.IO.Path]::GetDirectoryName($file)
   foreach ($p in @((Join-Path $dir "용어힌트.txt"), (Join-Path $here "용어힌트.txt"))) {
     if (Test-Path -LiteralPath $p) {
       $t = (Get-Content -LiteralPath $p -Raw -Encoding UTF8) -replace "\s+", " "
@@ -258,7 +258,7 @@ if ($GitPush -and $OutRoot) {
 Write-Host ".srt 파일은 여기에 있어요:"
 foreach ($d in ($outDirs | Sort-Object -Unique)) { Write-Host ("  " + $d) -ForegroundColor DarkGray }
 if ($OutRoot) { Start-Process explorer.exe $OutRoot }
-elseif ($outDirs.Count -gt 0) { Start-Process explorer.exe (Split-Path -LiteralPath $outDirs[0] -Parent) }
+elseif ($outDirs.Count -gt 0) { Start-Process explorer.exe ([System.IO.Path]::GetDirectoryName($outDirs[0])) }
 
 if ($WhenDone -eq "sleep" -or $WhenDone -eq "shutdown") {
   Write-Host ""
