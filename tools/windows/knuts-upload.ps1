@@ -60,6 +60,7 @@ Write-Host "  연결됨" -ForegroundColor Green
 Write-Host ""
 Write-Host "■ 3/4  전사본 모으기" -ForegroundColor Cyan
 $roots = New-Object System.Collections.ArrayList
+if (Test-Path -LiteralPath $mine) { [void]$roots.Add($mine) }
 [void]$roots.Add($here)
 if ($Items) { foreach ($i in $Items) { if (Test-Path -LiteralPath $i -PathType Container) { [void]$roots.Add((Get-Item -LiteralPath $i).FullName) } } }
 

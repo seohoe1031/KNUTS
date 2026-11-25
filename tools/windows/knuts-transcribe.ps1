@@ -9,7 +9,7 @@ param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Items)
 
 # ───── 설정 (필요하면 여기만 고치세요) ─────
 
-# 결과(.srt)를 모을 폴더. 비워 두면 이 스크립트가 있는 폴더(98. KNUTS)에 모읍니다.
+# 결과(.srt)를 모을 폴더. 비워 두면 이 스크립트 옆 "전사본" 폴더에 모읍니다.
 # 강의 파일 하나당 폴더 하나가 생깁니다. 예) $OutRoot = "D:\강의전사본"
 $OutRoot = ""
 
@@ -32,8 +32,20 @@ $ErrorActionPreference = "Continue"
 $here = $PSScriptRoot
 $log  = Join-Path $here "전사기록.txt"
 
-# 결과는 이 스크립트가 있는 폴더에 모읍니다. GitHub 올리기는 "GitHub 올리기.bat"이 합니다.
-if (-not $OutRoot) { $OutRoot = $here }
+# 결과는 이 스크립트 옆 "전사본" 폴더에 모읍니다. GitHub 올리기는 "GitHub 올리기.bat"이 합니다.
+if (-not $OutRoot) { $OutRoot = Join-Path $here "전사본" }
+
+# 예전 버전이 KNUTS 폴더에 흩어 놓은 전사본 폴더를 "전사본" 안으로 모읍니다.
+if ($OutRoot -eq (Join-Path $here "전사본")) {
+  if (-not (Test-Path -LiteralPath $OutRoot)) { New-Item -ItemType Directory -Force -Path $OutRoot | Out-Null }
+  $keep = @("전사본", "전사본저장소", "입력", "Faster-Whisper-XXL", "ffmpeg")
+  foreach ($d in @(Get-ChildItem -LiteralPath $here -Directory -ErrorAction SilentlyContinue)) {
+    if ($keep -contains $d.Name) { continue }
+    if (@(Get-ChildItem -LiteralPath $d.FullName -Filter "*.srt" -ErrorAction SilentlyContinue).Count -eq 0) { continue }
+    $to = Join-Path $OutRoot $d.Name
+    if (-not (Test-Path -LiteralPath $to)) { try { Move-Item -LiteralPath $d.FullName -Destination $to } catch { } }
+  }
+}
 $exts = @(".mp4", ".mkv", ".mov", ".avi", ".m4v", ".mp3", ".m4a", ".wav", ".flac", ".aac", ".webm", ".ogg")
 
 function Say($msg, $color) {
