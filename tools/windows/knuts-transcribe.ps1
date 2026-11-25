@@ -94,12 +94,18 @@ function Get-Prompt($file) {
   }
   return $DefaultPrompt
 }
+function HasDate($name) {
+  # 이름에 날짜(1117, 2026-11-17)가 들어 있는지
+  if (-not $name) { return $false }
+  return ($name -match '(^|\D)(20\d{2}[-_.]?)?(0?[1-9]|1[0-2])[-_.]?[0-3]\d(\D|$)')
+}
 function Out-Folder($item) {
   # 결과 폴더를 안 정했으면 예전처럼 강의 파일 옆에
   if (-not $OutRoot) { return (Join-Path $item.DirectoryName ($item.BaseName + "_KNUTS")) }
-  # 한곳에 모을 때는 날짜 폴더 이름을 앞에 붙여 구분 (1117_01.1교시)
+  # 날짜별 폴더에 들어 있으면 그 폴더 이름을 앞에 붙인다 (1117\01.1교시 -> 1117_01.1교시)
+  # 날짜가 아닌 그냥 보관 폴더(예: "MP3 for MediPrep")는 붙이지 않는다
   $parent = Split-Path -Leaf $item.DirectoryName
-  if ($parent -and $parent -ne "입력" -and $parent -notmatch '^[A-Za-z]:\\?$') { $base = $parent + "_" + $item.BaseName }
+  if ((-not (HasDate $item.BaseName)) -and (HasDate $parent)) { $base = $parent + "_" + $item.BaseName }
   else { $base = $item.BaseName }
   $try = Join-Path $OutRoot $base
   $i = 1
@@ -157,7 +163,18 @@ foreach ($f in $files) { $totalSec += (Get-Duration $f) }
 Write-Host ""
 Say ("■ 전사 시작 — 파일 " + $files.Count + "개" + $(if ($totalSec -gt 0) { " · 녹음 길이 합계 " + (Show-Span $totalSec) } else { "" })) Cyan
 if ($totalSec -gt 0) { Write-Host ("  예상 소요 시간: 약 " + (Show-Span ($totalSec / 1.1)) + " (이 노트북 기준, 녹음 길이와 비슷합니다)") -ForegroundColor DarkGray }
-foreach ($f in $files) { Write-Host ("   - " + [System.IO.Path]::GetFileName($f)) -ForegroundColor DarkGray }
+$noDate = @()
+foreach ($f in $files) {
+  Write-Host ("   - " + [System.IO.Path]::GetFileName($f)) -ForegroundColor DarkGray
+  $it = Get-Item -LiteralPath $f
+  if (-not (HasDate $it.BaseName) -and -not (HasDate (Split-Path -Leaf $it.DirectoryName))) { $noDate += $it.Name }
+}
+if ($noDate.Count -gt 0) {
+  Write-Host ""
+  Write-Host "  * 이름에 날짜가 없는 파일이 있어요. 그러면 어느 날 수업인지 몰라 분류가 멈춥니다." -ForegroundColor Yellow
+  Write-Host ("    " + ($noDate -join ", ")) -ForegroundColor Yellow
+  Write-Host "    1125.mp3 처럼 날짜를 넣어 주세요 (교시는 안 써도 됩니다)." -ForegroundColor DarkGray
+}
 if ($OutRoot) { Write-Host ("  결과 폴더: " + $OutRoot) -ForegroundColor DarkGray }
 if ($WhenDone -ne "none") { Write-Host ("  끝난 뒤: " + $(if ($WhenDone -eq "sleep") { "절전 모드로 전환" } else { "컴퓨터 종료" })) -ForegroundColor DarkGray }
 Write-Host ""
@@ -209,6 +226,7 @@ foreach ($file in $files) {
       Say ($tag + " 지난번에 끊긴 것 같아요 — 다시 전사합니다.") Yellow
       Remove-Item -LiteralPath $srt -Force
     }
+
     $t0 = Get-Date
     $mins = [math]::Round((Get-Duration $p.FullName) / 60)
     Write-Host ($tag + " 전사 중 (" + $mins + "분 분량, 모델 " + $Model + ")")
