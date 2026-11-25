@@ -165,6 +165,9 @@ Write-Host ""
 # 작업 중 노트북이 잠자기로 빠지지 않게 (관리자 권한 불필요)
 Add-Type -Namespace KNUTS -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);'
 [void][KNUTS.Power]::SetThreadExecutionState([uint32]2147483649)   # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+Write-Host "  * 노트북 덮개를 닫으면 멈춥니다(잠자기). 덮개를 열어 두세요 — 화면만 꺼지는 건 괜찮아요." -ForegroundColor Yellow
+Write-Host "    계속 돌리려면: 설정 > 전원 > 덮개를 닫을 때 수행할 작업 > 아무 것도 안 함" -ForegroundColor DarkGray
+Write-Host ""
 
 $startAll = Get-Date
 $okCount = 0; $failCount = 0; $outDirs = New-Object System.Collections.ArrayList
@@ -201,12 +204,16 @@ foreach ($file in $files) {
     $i++
     $srt = Join-Path $out ($p.BaseName + ".srt")
     $tag = "  [" + $n + "/" + $files.Count + " · 조각 " + $i + "/" + $parts.Count + "]"
-    if (Test-Path -LiteralPath $srt) { Write-Host ($tag + " 이미 있음 — 건너뜀") -ForegroundColor DarkGray; $okCount++; continue }
+    if (Test-Path -LiteralPath $srt) {
+      if ((Get-Item -LiteralPath $srt).Length -gt 200) { Write-Host ($tag + " 이미 있음 — 건너뜀") -ForegroundColor DarkGray; $okCount++; continue }
+      Say ($tag + " 지난번에 끊긴 것 같아요 — 다시 전사합니다.") Yellow
+      Remove-Item -LiteralPath $srt -Force
+    }
     $t0 = Get-Date
     $mins = [math]::Round((Get-Duration $p.FullName) / 60)
     Write-Host ($tag + " 전사 중 (" + $mins + "분 분량, 모델 " + $Model + ")")
     & $whisper "$($p.FullName)" --language ko --model $Model --device $Device --compute_type $Compute --initial_prompt "$prompt" --output_format srt --output_dir "$out" --beep_off
-    if (Test-Path -LiteralPath $srt) {
+    if ((Test-Path -LiteralPath $srt) -and (Get-Item -LiteralPath $srt).Length -gt 200) {
       $took = [math]::Round(((Get-Date) - $t0).TotalMinutes)
       Say ($tag + " 완료 (" + $took + "분) -> " + $p.BaseName + ".srt") Green
       $okCount++
