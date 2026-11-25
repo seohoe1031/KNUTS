@@ -12,8 +12,11 @@ $repoDir = Join-Path $here "전사본저장소"
 $url     = "https://github.com/seohoe1031/Classification-of-Past-Exam.git"
 $skip    = @("전사본저장소", "입력", "Faster-Whisper-XXL", "ffmpeg")
 $mine    = Join-Path $here "전사본"
+$pushed  = $false
 $TAG     = "lecture-audio"   # 강의 음성을 모아 둘 GitHub 릴리스 이름
 $DeleteLocalMp3 = $true      # 올린 뒤 노트북의 MP3를 지워 공간을 비웁니다 (원본 녹화본은 그대로)
+$CleanLocal     = $true      # 다 올라간 뒤 노트북의 전사본·MP3를 지웁니다 (GitHub에만 남김)
+$DeleteSourceMp3 = $true     # 전사에 쓴 원본 MP3도 지웁니다 (화면 녹화본 mp4는 건드리지 않음)
 
 function HasGit { return [bool](Get-Command git -ErrorAction SilentlyContinue) }
 function RefreshPath {
@@ -23,7 +26,7 @@ function RefreshPath {
 
 # ── 1. git ──
 Write-Host ""
-Write-Host "■ 1/5  git 확인" -ForegroundColor Cyan
+Write-Host "■ 1/6  git 확인" -ForegroundColor Cyan
 if (-not (HasGit)) { RefreshPath }
 if (-not (HasGit)) {
   Write-Host "  git이 없어서 설치합니다. 권한을 묻는 창이 뜨면 '예'를 눌러 주세요. (3~5분)"
@@ -39,7 +42,7 @@ Write-Host ("  " + (git --version)) -ForegroundColor Green
 
 # ── 2. 저장소 연결 ──
 Write-Host ""
-Write-Host "■ 2/5  저장소 연결" -ForegroundColor Cyan
+Write-Host "■ 2/6  저장소 연결" -ForegroundColor Cyan
 if (Test-Path -LiteralPath (Join-Path $repoDir ".git")) {
   Write-Host "  이미 연결돼 있어요. 최신 상태로 맞춥니다…"
   & git -C "$repoDir" pull --rebase 2>&1 | Out-Null
@@ -61,7 +64,7 @@ Write-Host "  연결됨" -ForegroundColor Green
 
 # ── 3. 전사본 모으기 ──
 Write-Host ""
-Write-Host "■ 3/5  전사본 모으기" -ForegroundColor Cyan
+Write-Host "■ 3/6  전사본 모으기" -ForegroundColor Cyan
 $roots = New-Object System.Collections.ArrayList
 if (Test-Path -LiteralPath $mine) { [void]$roots.Add($mine) }
 [void]$roots.Add($here)
@@ -96,9 +99,10 @@ if ($copied -eq 0) {
 
 # ── 4. 올리기 ──
 Write-Host ""
-Write-Host "■ 4/5  GitHub에 올리기" -ForegroundColor Cyan
+Write-Host "■ 4/6  GitHub에 올리기" -ForegroundColor Cyan
 if ($copied -eq 0) {
   Write-Host "  올릴 게 없어서 건너뜁니다." -ForegroundColor DarkGray
+  $pushed = $true
 } else {
   Write-Host "  처음이면 브라우저가 열리며 GitHub 로그인을 물어볼 수 있어요. 한 번만 하면 됩니다."
   & git -C "$repoDir" add -A 2>&1 | Out-Null
@@ -106,6 +110,7 @@ if ($copied -eq 0) {
   & git -C "$repoDir" pull --rebase 2>&1 | Out-Null
   $out = (& git -C "$repoDir" push 2>&1) -join " "
   if ($LASTEXITCODE -eq 0) {
+    $pushed = $true
     Write-Host ("  올리기 완료 — 전사본 " + $copied + "개") -ForegroundColor Green
     Write-Host ""
     Write-Host "  다음: 앱의 '인체감염학' 화면에서 「내 Claude로 전사본 정리」를 누르세요."
@@ -118,7 +123,7 @@ if ($copied -eq 0) {
 
 # ── 5/5. 강의 음성(MP3)을 GitHub 릴리스로 ──
 Write-Host ""
-Write-Host "■ 5/5  강의 음성 올리기" -ForegroundColor Cyan
+Write-Host "■ 5/6  강의 음성 올리기" -ForegroundColor Cyan
 try {
   $mp3 = New-Object System.Collections.ArrayList
   foreach ($root in ($roots | Sort-Object -Unique)) {
@@ -190,6 +195,58 @@ try {
   }
 } catch {
   Write-Host ("  음성 올리기 중 문제가 생겼어요: " + $_.Exception.Message) -ForegroundColor Yellow
+}
+
+# ── 6/6. 노트북 비우기 ──
+Write-Host ""
+Write-Host "■ 6/6  노트북 비우기" -ForegroundColor Cyan
+if (-not $CleanLocal) {
+  Write-Host "  설정에서 꺼 두셨어요 (CleanLocal)." -ForegroundColor DarkGray
+} elseif (-not $pushed) {
+  Write-Host "  올리기가 끝나지 않아서 아무것도 지우지 않았어요." -ForegroundColor Yellow
+} else {
+  $freed = 0; $gone = 0
+  foreach ($root in ($roots | Sort-Object -Unique)) {
+    $dirs = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | Where-Object { $skip -notcontains $_.Name })
+    foreach ($d in $dirs) {
+      $srts = @(Get-ChildItem -LiteralPath $d.FullName -Filter "*.srt" -ErrorAction SilentlyContinue)
+      if ($srts.Count -eq 0) { continue }
+      if (@(Get-ChildItem -LiteralPath $d.FullName -Filter "*.mp3" -ErrorAction SilentlyContinue).Count -gt 0) {
+        Write-Host ("  " + $d.Name + " — 음성이 아직 안 올라가서 그대로 둡니다.") -ForegroundColor Yellow
+        continue
+      }
+      # GitHub에 같은 이름으로 올라간 게 있는지 확인하고 지웁니다
+      $safe = $true
+      if (-not ($folders -contains $d.Name)) {
+        foreach ($f in $srts) { if (-not (Test-Path -LiteralPath (Join-Path (Join-Path $target $d.Name) $f.Name))) { $safe = $false } }
+      }
+      if (-not $safe) {
+        Write-Host ("  " + $d.Name + " — 저장소에서 확인이 안 돼 그대로 둡니다.") -ForegroundColor Yellow
+        continue
+      }
+      # 전사에 쓴 원본 MP3 (녹화본 mp4는 건드리지 않습니다)
+      $mark = Join-Path $d.FullName "_원본.txt"
+      if ($DeleteSourceMp3 -and (Test-Path -LiteralPath $mark)) {
+        $src = (Get-Content -LiteralPath $mark -Raw -Encoding UTF8).Trim()
+        if ($src -and $src -match '\.mp3$' -and (Test-Path -LiteralPath $src)) {
+          $freed += (Get-Item -LiteralPath $src).Length
+          Remove-Item -LiteralPath $src -Force -ErrorAction SilentlyContinue
+          Write-Host ("  - " + [System.IO.Path]::GetFileName($src) + " (전사에 쓴 MP3)") -ForegroundColor DarkGray
+        }
+      }
+      foreach ($f in $srts) { $freed += $f.Length; Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
+      Remove-Item -LiteralPath $mark -Force -ErrorAction SilentlyContinue
+      if (@(Get-ChildItem -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+        Remove-Item -LiteralPath $d.FullName -Force -ErrorAction SilentlyContinue
+      }
+      $gone++
+    }
+  }
+  if ($gone -eq 0) {
+    Write-Host "  비울 게 없어요." -ForegroundColor DarkGray
+  } else {
+    Say ("  " + $gone + "개 폴더를 비웠어요 (" + [math]::Round($freed / 1MB) + "MB 확보). 전사본과 음성은 GitHub에 있습니다.") Green
+  }
 }
 
 Write-Host ""
